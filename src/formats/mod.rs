@@ -15,8 +15,10 @@ macro_rules! check_format {
 
 pub fn get_format<T: Read>(f: &mut T) -> enums::Result {
     let mut possibilities = vec!();
+    let mut input = vec!();
+    f.read_to_end(&mut input);
 
-    check_format!(webm, f, possibilities);
+    check_format!(webm, &input, possibilities);
     enums::Result::Incomplete(possibilities)
 }
 

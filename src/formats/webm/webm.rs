@@ -305,20 +305,16 @@ impl IdParser {
     }
 }
 
-pub fn get_information<T: Read>(f: &mut T) -> enums::Result {
+pub fn get_information(mut i: &[u8]) -> enums::Result {
     let mut state = Status::Begin;
     let mut position = 0;
     let mut header_size = 0;
     let mut id_parser = IdParser::new();
     let mut size_parser = SizeParser::new();
-    let mut input = vec!();
 
     let mut id = 0;
     let mut size = 0;
     let mut did_seek = true;
-
-    f.read_to_end(&mut input);
-    let mut i = &input;
 
     while i.len() > 0 {
         match state {
