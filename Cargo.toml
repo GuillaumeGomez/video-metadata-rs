@@ -1,0 +1,14 @@
+[package]
+name = "video-metadata"
+version = "0.1.0"
+authors = ["Guillaume Gomez"]
+
+description = "Video metadata parser"
+repository = "https://github.com/guillaumegomez/video-metadata-rs"
+license = "MIT"
+
+[lib]
+name = "video_metadata"
+
+[dependencies]
+nom = "~1.1.0"
