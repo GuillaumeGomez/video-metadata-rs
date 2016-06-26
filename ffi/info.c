@@ -133,22 +133,39 @@ struct Metadata *get_information(const char *filename) {
 
     FILE *f = fopen("/tmp/p", "w");
     fprintf(f, "reading: '%s'!!!\n", filename);
+    fflush(f);
 
     AVFormatContext *ic = NULL;
-    AVInputFormat fmt = { 0 };
     AVDictionary *options = NULL;
     av_dict_set(&options, "scan_all_pmts", "1", AV_DICT_DONT_OVERWRITE);
-    if (avformat_open_input(&ic, filename, &fmt, &options) < 0) {
+    fprintf(f, "options? '%p'\n", options);
+    fflush(f);
+    int err = avformat_open_input(&ic, filename, NULL, &options);
+    if (err < 0) {
+        fprintf(f, "error... %d\n", err);
+        fflush(f);
+        char errbuf[129] = {0};
+        const char *errbuf_ptr = errbuf;
+
+        if (av_strerror(err, errbuf, sizeof(errbuf) - 1) < 0) {
+            fprintf(f, "2\n");
+            fflush(f);
+            errbuf_ptr = strerror(AVUNERROR(err));
+        }
+        fprintf(f, "failed to open: '%s'\n", errbuf_ptr);
+        fflush(f);
         free(m);
         av_dict_free(&options);
         return NULL;
     }
+    fprintf(f, "pointer: %p\n", ic);
+    fflush(f);
     fprintf(f, "streams: %d\nfile: %s\nduration: %d\nbitrate: %d\n",
             ic->nb_streams, ic->filename, ic->duration, ic->bit_rate);
     fflush(f);
 
     AVDictionary **opts = setup_find_stream_info_opts(ic, NULL);
-    int err = avformat_find_stream_info(ic, opts);
+    err = avformat_find_stream_info(ic, opts);
     for (x = 0; x < ic->nb_streams; x++)
         av_dict_free(&opts[x]);
     av_freep(&opts);
