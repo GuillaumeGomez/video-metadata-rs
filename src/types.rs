@@ -1,13 +1,13 @@
 use std::time::Duration;
 use KnownTypes;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Size {
     pub width: u16,
     pub height: u16,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Metadata {
     pub format: KnownTypes,
     pub duration: Duration,
