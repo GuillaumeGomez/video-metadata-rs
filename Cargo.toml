@@ -1,7 +1,8 @@
 [package]
 name = "video-metadata"
 version = "0.1.0"
-authors = ["Guillaume Gomez"]
+authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
+build = "build.rs"
 
 description = "Video metadata parser"
 repository = "https://github.com/guillaumegomez/video-metadata-rs"
@@ -10,5 +11,8 @@ license = "MIT"
 [lib]
 name = "video_metadata"
 
+[build-dependencies]
+gcc = "0.3"
+
 [dependencies]
-nom = "~1.1.0"
+libc = "^0.2"

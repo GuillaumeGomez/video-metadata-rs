@@ -1,5 +1,5 @@
 use std::time::Duration;
-use {AudioCodec, KnownTypes, VideoCodec};
+use KnownTypes;
 
 #[derive(Clone, Debug)]
 pub struct Size {
@@ -9,10 +9,9 @@ pub struct Size {
 
 #[derive(Clone, Debug)]
 pub struct Metadata {
-    pub video_name: String,
     pub format: KnownTypes,
-    pub len: Duration,
+    pub duration: Duration,
     pub size: Size,
-    pub video: VideoCodec,
-    pub audio: Option<AudioCodec>,
+    pub video: String,
+    pub audio: Option<String>,
 }

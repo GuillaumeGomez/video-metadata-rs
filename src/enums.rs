@@ -12,14 +12,12 @@ pub enum KnownTypes {
     Webm,
 }
 
-#[derive(Clone, Debug)]
-pub enum VideoCodec {
-    VP8,
-    VP9,
-}
-
-#[derive(Clone, Debug)]
-pub enum AudioCodec {
-    Opus,
-    Vorbis,
+impl KnownTypes {
+    pub fn from(s: &str) -> Option<KnownTypes> {
+        if s.contains("webm") {
+            Some(KnownTypes::Webm)
+        } else {
+            None
+        }
+    }
 }
