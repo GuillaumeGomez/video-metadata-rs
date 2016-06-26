@@ -8,7 +8,7 @@ This library provides a little wrapper to get the metadata of the following vide
 
 Other video/file types will return an error.
 
-## Example:
+## Example
 
 ```rust
 extern crate video_metadata;
@@ -30,3 +30,13 @@ fn main() {
     };
 }
 ```
+
+## Warning
+
+Please note that I'm using the version 3 of the following libraries:
+
+* libavformat
+* libavcodec
+* libavutil
+
+You can find more information on their [repository](https://github.com/FFmpeg/FFmpeg).
