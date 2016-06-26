@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int initialized = 0;
+
 struct Metadata {
     int64_t duration;
     unsigned int width;
@@ -17,102 +19,13 @@ struct Metadata {
     unsigned int format_len;
 };
 
-void free_metadata(struct Metadata **m) {
-    if (!m || !m[0]) {
-        return;
-    }
-    free(m[0]->video_codec);
-    free(m[0]->audio_codec);
-    free(m[0]->format);
-    free(m[0]);
-    m[0] = NULL;
-}
+struct Ret {
+    struct Metadata *m;
+    char *error;
+    unsigned int error_len;
+};
 
-int check_stream_specifier(AVFormatContext *s, AVStream *st, const char *spec)
-{
-    int ret = avformat_match_stream_specifier(s, st, spec);
-    if (ret < 0)
-        av_log(s, AV_LOG_ERROR, "Invalid stream specifier: %s.\n", spec);
-    return ret;
-}
-
-AVDictionary *filter_codec_opts(AVDictionary *opts, enum AVCodecID codec_id,
-                                AVFormatContext *s, AVStream *st, AVCodec *codec)
-{
-    AVDictionary    *ret = NULL;
-    AVDictionaryEntry *t = NULL;
-    int            flags = s->oformat ? AV_OPT_FLAG_ENCODING_PARAM
-                                      : AV_OPT_FLAG_DECODING_PARAM;
-    char          prefix = 0;
-    const AVClass    *cc = avcodec_get_class();
-
-    if (!codec)
-        codec            = s->oformat ? avcodec_find_encoder(codec_id)
-                                      : avcodec_find_decoder(codec_id);
-
-    switch (st->codec->codec_type) {
-    case AVMEDIA_TYPE_VIDEO:
-        prefix  = 'v';
-        flags  |= AV_OPT_FLAG_VIDEO_PARAM;
-        break;
-    case AVMEDIA_TYPE_AUDIO:
-        prefix  = 'a';
-        flags  |= AV_OPT_FLAG_AUDIO_PARAM;
-        break;
-    case AVMEDIA_TYPE_SUBTITLE:
-        prefix  = 's';
-        flags  |= AV_OPT_FLAG_SUBTITLE_PARAM;
-        break;
-    }
-
-    while (t = av_dict_get(opts, "", t, AV_DICT_IGNORE_SUFFIX)) {
-        char *p = strchr(t->key, ':');
-
-        /* check stream specification in opt name */
-        if (p)
-            switch (check_stream_specifier(s, st, p + 1)) {
-            case  1: *p = 0; break;
-            case  0:         continue;
-            }
-
-        if (av_opt_find(&cc, t->key, NULL, flags, AV_OPT_SEARCH_FAKE_OBJ) ||
-            !codec ||
-            (codec->priv_class &&
-             av_opt_find(&codec->priv_class, t->key, NULL, flags,
-                         AV_OPT_SEARCH_FAKE_OBJ)))
-            av_dict_set(&ret, t->key, t->value, 0);
-        else if (t->key[0] == prefix &&
-                 av_opt_find(&cc, t->key + 1, NULL, flags,
-                             AV_OPT_SEARCH_FAKE_OBJ))
-            av_dict_set(&ret, t->key + 1, t->value, 0);
-
-        if (p)
-            *p = ':';
-    }
-    return ret;
-}
-
-AVDictionary **setup_find_stream_info_opts(AVFormatContext *s,
-                                           AVDictionary *codec_opts)
-{
-    int i;
-    AVDictionary **opts;
-
-    if (!s->nb_streams)
-        return NULL;
-    opts = av_mallocz_array(s->nb_streams, sizeof(*opts));
-    if (!opts) {
-        av_log(NULL, AV_LOG_ERROR,
-               "Could not alloc memory for stream options.\n");
-        return NULL;
-    }
-    for (i = 0; i < s->nb_streams; i++)
-        opts[i] = filter_codec_opts(codec_opts, s->streams[i]->codec->codec_id,
-                                    s, s->streams[i], NULL);
-    return opts;
-}
-
-AVCodecContext *iterate_over_streams(AVFormatContext *ic, int i) {
+static AVCodecContext *iterate_over_streams(AVFormatContext *ic, int i) {
     AVCodecContext *avctx = avcodec_alloc_context3(NULL);
     if (!avctx) {
         return NULL;
@@ -124,65 +37,68 @@ AVCodecContext *iterate_over_streams(AVFormatContext *ic, int i) {
     return avctx;
 }
 
-struct Metadata *get_information(const char *filename) {
+static struct Ret create_ret(struct Metadata *m, char *err) {
+    struct Ret r;
+
+    r.m = m;
+    r.error = err;
+    if (err) {
+        r.error_len = strlen(err);
+    }
+    return r;
+}
+
+static void free_metadata(struct Metadata **m) {
+    if (!m || !m[0]) {
+        return;
+    }
+    free(m[0]->video_codec);
+    free(m[0]->audio_codec);
+    free(m[0]->format);
+    free(m[0]);
+    m[0] = NULL;
+}
+
+void free_ret(struct Ret *r) {
+    if (!r) {
+        return;
+    }
+    free_metadata(&r->m);
+    free(r->error);
+}
+
+struct Ret get_information(const char *filename) {
     int x;
+    if (!initialized) {
+        av_register_all();
+        initialized = 1;
+    }
     struct Metadata *m = calloc(1, sizeof(struct Metadata));
     if (!m) {
-        return NULL;
+        return create_ret(NULL, strdup("metadata allocation failed"));
     }
 
-    FILE *f = fopen("/tmp/p", "w");
-    fprintf(f, "reading: '%s'!!!\n", filename);
-    fflush(f);
-
     AVFormatContext *ic = NULL;
-    AVDictionary *options = NULL;
-    av_dict_set(&options, "scan_all_pmts", "1", AV_DICT_DONT_OVERWRITE);
-    fprintf(f, "options? '%p'\n", options);
-    fflush(f);
-    int err = avformat_open_input(&ic, filename, NULL, &options);
+    int err = avformat_open_input(&ic, filename, NULL, NULL);
     if (err < 0) {
-        fprintf(f, "error... %d\n", err);
-        fflush(f);
         char errbuf[129] = {0};
         const char *errbuf_ptr = errbuf;
 
         if (av_strerror(err, errbuf, sizeof(errbuf) - 1) < 0) {
-            fprintf(f, "2\n");
-            fflush(f);
             errbuf_ptr = strerror(AVUNERROR(err));
         }
-        fprintf(f, "failed to open: '%s'\n", errbuf_ptr);
-        fflush(f);
         free(m);
-        av_dict_free(&options);
-        return NULL;
-    }
-    fprintf(f, "pointer: %p\n", ic);
-    fflush(f);
-    fprintf(f, "streams: %d\nfile: %s\nduration: %d\nbitrate: %d\n",
-            ic->nb_streams, ic->filename, ic->duration, ic->bit_rate);
-    fflush(f);
-
-    AVDictionary **opts = setup_find_stream_info_opts(ic, NULL);
-    err = avformat_find_stream_info(ic, opts);
-    for (x = 0; x < ic->nb_streams; x++)
-        av_dict_free(&opts[x]);
-    av_freep(&opts);
-    if (err < 0) {
-        free(m);
-        av_dict_free(&options);
-        return NULL;
+        return create_ret(NULL, strdup(errbuf_ptr));
     }
 
     if (ic->iformat && ic->iformat->name) {
         m->format = strdup(ic->iformat->name);
-    } else if (ic->oformat && ic->oformat->name) {
-        m->format = strdup(ic->oformat->name);
+    } else {
+        free_metadata(&m);
+        avformat_free_context(ic);
+        return create_ret(NULL, strdup("Unable to get format"));
     }
-    if (m->format) {
-        m->format_len = strlen(m->format);
-    }
+    m->format_len = strlen(m->format);
     m->duration = ic->duration;
     for (x = 0; x < ic->nb_streams; x++) {
         AVCodecContext *avctx = iterate_over_streams(ic, x);
@@ -192,27 +108,56 @@ struct Metadata *get_information(const char *filename) {
                     m->width = avctx->width;
                     m->height = avctx->height;
                 }
-                fprintf(f, "video!!!\n");
                 m->video_codec = strdup(avcodec_get_name(avctx->codec_id));
-                fprintf(f, "video_codec: %s\n", m->video_codec);
+                m->video_codec_len = strlen(m->video_codec);
             } else if (avctx->codec_type == AVMEDIA_TYPE_AUDIO) {
-                fprintf(f, "audio!!!\n");
                 m->audio_codec = strdup(avcodec_get_name(avctx->codec_id));
+                m->audio_codec_len = strlen(m->audio_codec);
             }
             avcodec_free_context(&avctx);
         }
     }
-    fclose(f);
-    av_freep(&ic->streams);
-    //avformat_close_input(&ic);
-    av_dict_free(&options);
+    avformat_close_input(&ic);
     if (!m->video_codec) {
         free_metadata(&m);
-        return NULL;
+        return create_ret(NULL, strdup("Unable to get video codec"));
     }
-    return m;
+    return create_ret(m, NULL);
 }
 
 int64_t get_time_base(void) {
     return AV_TIME_BASE;
 }
+/*
+// to test just this file: gcc info.c -lavcodec -lavformat -lavutil
+void print_ret(struct Ret *r) {
+    if (!r->m) {
+        if (!r->error) {
+            printf("unknown error\n");
+        } else {
+            printf("error: %s\n", r->error);
+        }
+    } else {
+        printf("duration: %ld\n", r->m->duration);
+        printf("size    : %dx%d\n", r->m->width, r->m->height);
+        printf("video   : %s\n", r->m->video_codec);
+        if (r->m->audio_codec) {
+            printf("audio   : %s\n", r->m->audio_codec);
+        }
+        printf("format  : %s\n", r->m->format);
+    }
+}
+
+void print_info(const char *type, const char *filename) {
+    printf("====== %s ======\n", type);
+    struct Ret r = get_information(filename);
+    print_ret(&r);
+    free_ret(&r);
+}
+
+int main() {
+    print_info("WEBM", "../assets/big-buck-bunny_trailer.webm");
+    print_info("MP4", "../assets/small.mp4");
+    print_info("OGG", "../assets/small.ogg");
+    return 0;
+}*/
