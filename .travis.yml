@@ -1,0 +1,12 @@
+language: rust
+rust:
+- stable
+- nightly
+sudo: true
+install:
+  - sudo add-apt-repository ppa:mc3man/trusty-media
+  - sudo apt-get update
+  - sudo apt-get install libavcodec-dev libavformat-dev libavutil-dev 
+script:
+  - rustc --version
+  - RUST_BACKTRACE=1 cargo test
