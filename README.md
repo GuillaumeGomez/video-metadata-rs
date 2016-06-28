@@ -1,4 +1,4 @@
-# video-metadata-rs
+# video-metadata-rs [![Build Status](https://travis-ci.org/GuillaumeGomez/video-metadata-rs.svg?branch=master)](https://travis-ci.org/GuillaumeGomez/video-metadata-rs)
 
 This library provides a little wrapper to get the metadata of the following video types:
 
