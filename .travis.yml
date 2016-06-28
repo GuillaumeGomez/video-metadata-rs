@@ -1,0 +1,14 @@
+language: rust
+rust:
+- stable
+- nightly
+sudo: required
+dist: trusty
+install:
+  # http://www.deb-multimedia.org/dists/unstable/main/binary-amd64/
+  - sudo apt-get install -y libspeex1 libvo-amrwbenc0 libvpx1 libxvidcore4 libzvbi0 libva1 libgnutls-dev librtmp-dev libschroedinger-1.0 libopenjpeg-dev libopencore-amrwb0 libopencore-amrnb0 libgsm0710-0 libcrystalhd3 libvdpau1 libva-x11-1
+  # libOpenCL libopus-dev libsoxr-dev
+  - sudo dpkg -i package/ffmpeg-libs.deb
+script:
+  - rustc --version
+  - RUST_BACKTRACE=1 cargo test
