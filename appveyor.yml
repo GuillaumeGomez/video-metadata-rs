@@ -9,17 +9,14 @@ environment:
 install:
   - IF "%BITS%" == "32" SET ARCH=i686
   - IF "%BITS%" == "64" SET ARCH=x86_64
-  - SET RUST_URL=https://static.rust-lang.org/dist/rust-%RUST%-%ARCH%-pc-windows-gnu.exe
+  - SET RUST_URL=https://static.rust-lang.org/dist/rust-%RUST%-%ARCH%-pc-windows-msvc.exe
   - SET PATH=C:\Rust\bin;C:\msys64\mingw%BITS%\bin;%PATH%;C:\msys64\usr\bin
   - ps: Start-FileDownload $Env:RUST_URL -FileName rust-dist.exe
   - rust-dist.exe /VERYSILENT /NORESTART /DIR="C:\Program Files (x86)\Rust"
   - SET PATH=%PATH%;C:\Program Files (x86)\Rust\bin
-  - if "%BITS%" == "32" set PATH=%PATH%;C:\msys64\mingw32\bin
-  - if "%BITS%" == "32" 7z e package/win32.zip -o"C:\Program Files (x86)\ffmpeg" -y
-  - if "%BITS%" == "64" set PATH=%PATH%;C:\msys64\mingw64\bin
-  - if "%BITS%" == "64" 7z e package/win64.zip -o"C:\Program Files (x86)\ffmpeg" -y
-  - ps: Copy-Item "C:\Program Files (x86)\ffmpeg\include\*" -destination .\ffi\
-  - SET PATH=%PATH%;"C:\Program Files (x86)\ffmpeg\libs"
+  - 7z e package/win%BITS%.zip -o"C:\Program Files (x86)\ffmpeg" -y
+  - SET PATH=%PATH%;"C:\Program Files (x86)\ffmpeg\win%BITS%\libs"
+  - SET INCLUDE=%INCLUDE%;"C:\Program Files (x86)\ffmpeg\win%BITS%\include"
   - rustc -V
   - cargo -V
 
