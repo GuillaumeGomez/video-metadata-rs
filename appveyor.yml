@@ -1,28 +1,25 @@
 environment:
   matrix:
     # Nightly channel
-    - TARGET: i686-pc-windows-gnu
-      CHANNEL: nightly
-    - TARGET: i686-pc-windows-msvc
-      CHANNEL: nightly
-    - TARGET: x86_64-pc-windows-gnu
-      CHANNEL: nightly
-    - TARGET: x86_64-pc-windows-msvc
-      CHANNEL: nightly
+    - RUST: nightly
+      BITS: 32
+    - RUST: nightly
+      BITS: 64
 
 install:
-  # - ps: Start-FileDownload "https://static.rust-lang.org/dist/channel-rust-stable"
-  # - ps: $env:RUST_VERSION = Get-Content channel-rust-stable | select -first 1 | %{$_.split('-')[1]}
-  - if NOT "%CHANNEL%" == "stable" set RUST_VERSION=%CHANNEL%
-  - ps: Start-FileDownload "https://static.rust-lang.org/dist/rust-${env:RUST_VERSION}-${env:TARGET}.exe"
-  - rust-%RUST_VERSION%-%TARGET%.exe /VERYSILENT /NORESTART /DIR="C:\Program Files (x86)\Rust"
+  - IF "%BITS%" == "32" SET ARCH=i686
+  - IF "%BITS%" == "64" SET ARCH=x86_64
+  - SET RUST_URL=https://static.rust-lang.org/dist/rust-%RUST%-%ARCH%-pc-windows-gnu.exe
+  - SET PATH=C:\Rust\bin;C:\msys64\mingw%BITS%\bin;%PATH%;C:\msys64\usr\bin
+  - ps: Start-FileDownload $Env:RUST_URL -FileName rust-dist.exe
+  - rust-dist.exe /VERYSILENT /NORESTART /DIR="C:\Program Files (x86)\Rust"
   - SET PATH=%PATH%;C:\Program Files (x86)\Rust\bin
-  - if "%TARGET%" == "i686-pc-windows-gnu" set PATH=%PATH%;C:\msys64\mingw32\bin
-  - if "%TARGET%" == "i686-pc-windows-gnu" 7z e package/win32.zip -oC:\Program Files (x86)\ffmpeg -y
-  - if "%TARGET%" == "x86_64-pc-windows-gnu" set PATH=%PATH%;C:\msys64\mingw64\bin
-  - if "%TARGET%" == "x86_64-pc-windows-gnu" 7z e package/win64.zip -oC:\Program Files (x86)\ffmpeg -y
-  - SET PATH=%PATH%;C:\Program Files (x86)\ffmpeg\include
-  - SET PATH=%PATH%;C:\Program Files (x86)\ffmpeg\libs
+  - if "%BITS%" == "32" set PATH=%PATH%;C:\msys64\mingw32\bin
+  - if "%BITS%" == "32" 7z e package/win32.zip -o"C:\Program Files (x86)\ffmpeg" -y
+  - if "%BITS%" == "64" set PATH=%PATH%;C:\msys64\mingw64\bin
+  - if "%BITS%" == "64" 7z e package/win64.zip -o"C:\Program Files (x86)\ffmpeg" -y
+  - ps: Copy-Item "C:\Program Files (x86)\ffmpeg\include\*" -destination .\ffi\
+  - SET PATH=%PATH%;"C:\Program Files (x86)\ffmpeg\libs"
   - rustc -V
   - cargo -V
 
