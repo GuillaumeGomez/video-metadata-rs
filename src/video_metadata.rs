@@ -11,6 +11,7 @@ extern "C" {
     fn get_information(filename: *const c_char) -> CRet;
     fn free_ret(r: *mut CRet);
     fn get_time_base() -> i64;
+    fn get_information_from_buffer(buffer: *const c_char, size: c_uint) -> CRet;
 }
 
 #[repr(C)]
@@ -44,38 +45,47 @@ fn str_from_c(s: *mut u8, len: c_uint) -> Option<String> {
     }
 }
 
+unsafe fn check_result(mut r: CRet) -> enums::Result {
+    let res = if r.m.is_null() {
+        match str_from_c(r.error, r.error_len) {
+            Some(s) => enums::Result::Unknown(s),
+            None => enums::Result::Unknown("Unknown error".to_owned()),
+        }
+    } else {
+        let m = r.m;
+        match KnownTypes::from(&str_from_c((*m).format, (*m).format_len).unwrap()) {
+            Some(format) => {
+                let duration = if (*m).duration <= i64::MAX - 5000 { (*m).duration + 5000 }
+                               else { (*m).duration } as u64;
+                let time_base = get_time_base() as u64;
+                enums::Result::Complete(Metadata {
+                    format: format,
+                    duration: Duration::new(duration / time_base,
+                                            duration as u32 % time_base as u32),
+                    size: Size { width: (*m).width as u16, height: (*m).height as u16 },
+                    video: str_from_c((*m).video_codec, (*m).video_codec_len).unwrap(),
+                    audio: str_from_c((*m).audio_codec, (*m).audio_codec_len),
+                })
+            }
+            None => enums::Result::Unknown("Unsupported format".to_owned()),
+        }
+    };
+    free_ret(&mut r);
+    res
+}
+
 pub fn get_format(filename: &str) -> enums::Result {
     let c_name = CString::new(filename).unwrap();
 
     unsafe {
-        let mut r = get_information(c_name.as_ptr());
+        check_result(get_information(c_name.as_ptr()))
+    }
+}
 
-        let res = if r.m.is_null() {
-            match str_from_c(r.error, r.error_len) {
-                Some(s) => enums::Result::Unknown(s),
-                None => enums::Result::Unknown("Unknown error".to_owned()),
-            }
-        } else {
-            let m = r.m;
-            match KnownTypes::from(&str_from_c((*m).format, (*m).format_len).unwrap()) {
-                Some(format) => {
-                    let duration = if (*m).duration <= i64::MAX - 5000 { (*m).duration + 5000 }
-                                   else { (*m).duration } as u64;
-                    let time_base = get_time_base() as u64;
-                    enums::Result::Complete(Metadata {
-                        format: format,
-                        duration: Duration::new(duration / time_base,
-                                                duration as u32 % time_base as u32),
-                        size: Size { width: (*m).width as u16, height: (*m).height as u16 },
-                        video: str_from_c((*m).video_codec, (*m).video_codec_len).unwrap(),
-                        audio: str_from_c((*m).audio_codec, (*m).audio_codec_len),
-                    })
-                }
-                None => enums::Result::Unknown("Unsupported format".to_owned()),
-            }
-        };
-        free_ret(&mut r);
-        res
+pub fn get_format_from_slice(content: &[u8]) -> enums::Result {
+    unsafe {
+        check_result(get_information_from_buffer(content.as_ptr() as *const c_char,
+                                                 content.len() as c_uint))
     }
 }
 
@@ -108,6 +118,25 @@ fn mp4() {
 #[test]
 fn ogg() {
     match get_format("assets/small.ogg") {
+        enums::Result::Complete(m) => {
+            assert_eq!(format!("{}x{}", m.size.width, m.size.height), "560x320".to_owned());
+            assert_eq!(m.format, KnownTypes::Ogg);
+            assert_eq!(&m.video, "theora");
+            assert_eq!(m.audio, Some("vorbis".to_owned()));
+        }
+        enums::Result::Unknown(s) => assert_eq!(s, ""),
+    }
+}
+
+#[test]
+fn from_slice() {
+    use std::fs::File;
+    use std::io::Read;
+
+    let mut data = vec!();
+    let mut f = File::open("assets/small.ogg").unwrap();
+    f.read_to_end(&mut data).unwrap();
+    match get_format_from_slice(&data) {
         enums::Result::Complete(m) => {
             assert_eq!(format!("{}x{}", m.size.width, m.size.height), "560x320".to_owned());
             assert_eq!(m.format, KnownTypes::Ogg);
