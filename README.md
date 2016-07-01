@@ -13,6 +13,8 @@ Other video/file types will return an error.
 ```rust
 extern crate video_metadata;
 
+use video_metadata::enums;
+
 fn main() {
     match video_metadata::get_format("your_video_file") {
         enums::Result::Complete(m) => {
