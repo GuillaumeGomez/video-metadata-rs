@@ -2,15 +2,23 @@ use enums::{self, KnownTypes};
 use types::{Metadata, Size};
 
 use std::time::Duration;
-use std::i64;
+use std::{i64, slice, str};
 use std::ffi::CString;
 
 use libc::{c_uint, c_char};
 
 extern "C" {
-    fn get_information(filename: *const c_char) -> *mut CMetadata;
-    fn free_metadata(m: *mut *mut CMetadata);
+    fn get_information(filename: *const c_char) -> CRet;
+    fn free_ret(r: *mut CRet);
     fn get_time_base() -> i64;
+    fn get_information_from_buffer(buffer: *const c_char, size: c_uint) -> CRet;
+}
+
+#[repr(C)]
+struct CRet {
+    m: *mut CMetadata,
+    error: *mut u8,
+    error_len: c_uint,
 }
 
 #[repr(C)]
@@ -26,18 +34,26 @@ struct CMetadata {
     format_len: c_uint,
 }
 
-pub fn get_format(filename: &str) -> enums::Result {
-    let c_name = CString::new(filename).unwrap();
-
-    unsafe {
-        let mut m = get_information(c_name.as_ptr());
-
-        if m.is_null() {
-            return enums::Result::Unknown;
+fn str_from_c(s: *mut u8, len: c_uint) -> Option<String> {
+    if s.is_null() || len < 1 {
+        None
+    } else {
+        unsafe {
+            Some(str::from_utf8_unchecked(
+                    slice::from_raw_parts(s as *const u8, len as usize)).to_owned())
         }
-        let res = match KnownTypes::from(&String::from_raw_parts((*m).format,
-                                                                 (*m).format_len as usize,
-                                                                 (*m).format_len as usize)) {
+    }
+}
+
+unsafe fn check_result(mut r: CRet) -> enums::Result {
+    let res = if r.m.is_null() {
+        match str_from_c(r.error, r.error_len) {
+            Some(s) => enums::Result::Unknown(s),
+            None => enums::Result::Unknown("Unknown error".to_owned()),
+        }
+    } else {
+        let m = r.m;
+        match KnownTypes::from(&str_from_c((*m).format, (*m).format_len).unwrap()) {
             Some(format) => {
                 let duration = if (*m).duration <= i64::MAX - 5000 { (*m).duration + 5000 }
                                else { (*m).duration } as u64;
@@ -47,26 +63,92 @@ pub fn get_format(filename: &str) -> enums::Result {
                     duration: Duration::new(duration / time_base,
                                             duration as u32 % time_base as u32),
                     size: Size { width: (*m).width as u16, height: (*m).height as u16 },
-                    video: String::from_raw_parts((*m).video_codec,
-                                                  (*m).video_codec_len as usize,
-                                                  (*m).video_codec_len as usize),
-                    audio: if (*m).audio_codec.is_null() { None }
-                           else { Some(String::from_raw_parts((*m).audio_codec,
-                                                              (*m).audio_codec_len as usize,
-                                                              (*m).audio_codec_len as usize)) },
+                    video: str_from_c((*m).video_codec, (*m).video_codec_len).unwrap(),
+                    audio: str_from_c((*m).audio_codec, (*m).audio_codec_len),
                 })
             }
-            None => enums::Result::Unknown,
-        };
-        free_metadata(&mut m);
-        res
+            None => enums::Result::Unknown("Unsupported format".to_owned()),
+        }
+    };
+    free_ret(&mut r);
+    res
+}
+
+pub fn get_format(filename: &str) -> enums::Result {
+    let c_name = CString::new(filename).unwrap();
+
+    unsafe {
+        check_result(get_information(c_name.as_ptr()))
+    }
+}
+
+pub fn get_format_from_slice(content: &[u8]) -> enums::Result {
+    unsafe {
+        check_result(get_information_from_buffer(content.as_ptr() as *const c_char,
+                                                 content.len() as c_uint))
     }
 }
 
 #[test]
-fn webm_bison() {
-    match get_format("/home/imperio/rust/video-metadata-rs/assets/big-buck-bunny_trailer.webm") {
-        enums::Result::Complete(_) => {}
-        _ => assert!(false, "failed"),
+fn webm() {
+    match get_format("assets/big-buck-bunny_trailer.webm") {
+        enums::Result::Complete(m) => {
+            assert_eq!(format!("{}x{}", m.size.width, m.size.height), "640x360".to_owned());
+            assert_eq!(m.format, KnownTypes::WebM);
+            assert_eq!(&m.video, "vp8");
+            assert_eq!(m.audio, Some("vorbis".to_owned()));
+        }
+        enums::Result::Unknown(s) => assert_eq!(s, ""),
     }
+}
+
+#[test]
+fn mp4() {
+    match get_format("assets/small.mp4") {
+        enums::Result::Complete(m) => {
+            assert_eq!(format!("{}x{}", m.size.width, m.size.height), "560x320".to_owned());
+            assert_eq!(m.format, KnownTypes::MP4);
+            assert_eq!(&m.video, "h264");
+            assert_eq!(m.audio, Some("aac".to_owned()));
+        }
+        enums::Result::Unknown(s) => assert_eq!(s, ""),
+    }
+}
+
+#[test]
+fn ogg() {
+    match get_format("assets/small.ogg") {
+        enums::Result::Complete(m) => {
+            assert_eq!(format!("{}x{}", m.size.width, m.size.height), "560x320".to_owned());
+            assert_eq!(m.format, KnownTypes::Ogg);
+            assert_eq!(&m.video, "theora");
+            assert_eq!(m.audio, Some("vorbis".to_owned()));
+        }
+        enums::Result::Unknown(s) => assert_eq!(s, ""),
+    }
+}
+
+#[test]
+fn from_slice() {
+    use std::fs::File;
+    use std::io::Read;
+
+    let mut data = vec!();
+    let mut f = File::open("assets/small.ogg").unwrap();
+    f.read_to_end(&mut data).unwrap();
+    match get_format_from_slice(&data) {
+        enums::Result::Complete(m) => {
+            assert_eq!(format!("{}x{}", m.size.width, m.size.height), "560x320".to_owned());
+            assert_eq!(m.format, KnownTypes::Ogg);
+            assert_eq!(&m.video, "theora");
+            assert_eq!(m.audio, Some("vorbis".to_owned()));
+        }
+        enums::Result::Unknown(s) => assert_eq!(s, ""),
+    }
+}
+
+#[test]
+fn fail() {
+    assert_eq!(get_format("ffi/info.c"),
+               enums::Result::Unknown("Invalid data found when processing input".to_owned()));
 }
