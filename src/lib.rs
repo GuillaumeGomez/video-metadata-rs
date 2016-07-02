@@ -4,7 +4,10 @@ pub use enums::{
     KnownTypes,
     Result,
 };
-pub use video_metadata::get_format;
+pub use video_metadata::{
+    get_format,
+    get_format_from_slice,
+};
 pub use types::{
     Metadata,
     Size,
