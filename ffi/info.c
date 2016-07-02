@@ -85,8 +85,6 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
     struct buffer_data *bd = (struct buffer_data *)opaque;
     buf_size = FFMIN(buf_size, bd->size);
 
-    printf("ptr:%p size:%zu\n", bd->ptr, bd->size);
-
     /* copy internal buffer data to buf */
     memcpy(buf, bd->ptr, buf_size);
     bd->ptr  += buf_size;
@@ -108,7 +106,6 @@ struct Ret read_info(const char *buffer, unsigned int size, const char *filename
     struct buffer_data bd = { 0 };
 
     if (buffer) {
-
         bd.ptr = (char*)buffer;
         bd.size = size;
 
@@ -131,25 +128,35 @@ struct Ret read_info(const char *buffer, unsigned int size, const char *filename
             return create_ret(NULL, strdup("Unable to create io context"));
         }
         ic->pb = avio_ctx;
-    } else {
-        int err = avformat_open_input(&ic, filename, NULL, NULL);
-        if (err < 0) {
-            char errbuf[129] = {0};
-            const char *errbuf_ptr = errbuf;
-
-            if (av_strerror(err, errbuf, sizeof(errbuf) - 1) < 0) {
-                errbuf_ptr = strerror(AVUNERROR(err));
-            }
-            free_metadata(&m);
-            return create_ret(NULL, strdup(errbuf_ptr));
-        }
     }
 
-    if (ic->iformat && ic->iformat->name) {
+    int err = avformat_open_input(&ic, filename, NULL, NULL);
+    if (err < 0) {
+        char errbuf[129] = {0};
+        const char *errbuf_ptr = errbuf;
+
+        if (av_strerror(err, errbuf, sizeof(errbuf) - 1) < 0) {
+            errbuf_ptr = strerror(AVUNERROR(err));
+        }
+        free_metadata(&m);
+        avformat_close_input(&ic);
+        if (avio_ctx) {
+            av_freep(&avio_ctx->buffer);
+            av_freep(&avio_ctx);
+        }
+        return create_ret(NULL, strdup(errbuf_ptr));
+    }
+
+
+    if (ic && ic->iformat && ic->iformat->name) {
         m->format = strdup(ic->iformat->name);
     } else {
         free_metadata(&m);
         avformat_close_input(&ic);
+        if (avio_ctx) {
+            av_freep(&avio_ctx->buffer);
+            av_freep(&avio_ctx);
+        }
         //avformat_free_context(ic);
         return create_ret(NULL, strdup("Unable to get format"));
     }
@@ -205,7 +212,7 @@ struct Ret get_information(const char *filename) {
 int64_t get_time_base(void) {
     return AV_TIME_BASE;
 }
-
+/*
 // to test just this file: gcc info.c -lavcodec -lavformat -lavutil
 void print_ret(struct Ret *r) {
     if (!r->m) {
@@ -225,41 +232,36 @@ void print_ret(struct Ret *r) {
     }
 }
 
-void print_info(const char *type, const char *filename) {
-    printf("====== TEST FILE: %s ======\n", type);
-    struct Ret r = get_information(filename);
-    print_ret(&r);
-    free_ret(&r);
-}
-
 struct Buffer {
     char *buffer;
     size_t size;
 };
 
 struct Buffer get_file_content(const char *filename) {
-    FILE *f = fopen(filename, "r");
     char buffer[4096];
     char *out = NULL;
     size_t read;
     size_t total = 0;
     struct Buffer b;
+    FILE *f = fopen(filename, "r");
 
     if (!f) {
         b.buffer = out;
         b.size = total;
         return b;
     }
-    while ((read = fread(buffer, sizeof(buffer), 1, f)) > 0) {
+    while ((read = fread(buffer, 1, sizeof(buffer), f)) > 0) {
         total += read;
         out = realloc(out, total);
         size_t i = 0;
         while (i < read) {
-            out[total + i] = buffer[i];
+            out[total - (read - i)] = buffer[i];
+            ++i;
         }
     }
     b.buffer = out;
     b.size = total;
+    fclose(f);
     return b;
 }
 
@@ -269,8 +271,16 @@ void print_info2(const char *type, const char *filename) {
     if (!b.buffer) {
         return;
     }
+    printf("file size: %ld\n", b.size);
     struct Ret r = get_information_from_buffer(b.buffer, b.size);
     free(b.buffer);
+    print_ret(&r);
+    free_ret(&r);
+}
+
+void print_info(const char *type, const char *filename) {
+    printf("====== TEST FILE: %s ======\n", type);
+    struct Ret r = get_information(filename);
     print_ret(&r);
     free_ret(&r);
 }
@@ -281,4 +291,4 @@ int main() {
     print_info("OGG", "../assets/small.ogg");
     print_info2("OGG", "../assets/small.ogg");
     return 0;
-}
+}*/
