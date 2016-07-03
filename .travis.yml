@@ -1,33 +1,36 @@
 language: rust
+addons:
+  apt:
+    packages:
+      - ffmpeg
+      - valgrind
+      - libavformat-dev
+      - libavcodec-dev
+      - libavutil-dev
 matrix:
   include:
     - os: linux
       rust: stable
-      sudo: required
       dist: trusty
     - os: linux
       rust: nightly
-      sudo: required
       dist: trusty
     - os: osx
       rust: stable
     - os: osx
       rust: nightly
 install:
-  # http://www.deb-multimedia.org/dists/unstable/main/binary-amd64/
-  #
-  # Linux part
-  #
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libspeex1 libvo-amrwbenc0 libvpx1 libxvidcore4 libzvbi0 libva1 libgnutls-dev librtmp-dev libschroedinger-1.0 libopenjpeg-dev libopencore-amrwb0 libopencore-amrnb0 libgsm0710-0 libcrystalhd3 libvdpau1 libva-x11-1 ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then wget http://www.guillaume-gomez.fr/packages/ffmpeg-libs.deb ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo dpkg -i ffmpeg-libs.deb ; fi
-  #
-  # OSX part
-  #
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libvpx ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install ffmpeg --with-libvpx ; fi
-  # libOpenCL libopus-dev libsoxr-dev
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install ffmpeg --with-libvpx ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install valgrind; fi
 script:
   - rustc --version
+  - cargo build
   - RUST_BACKTRACE=1 cargo test
+  - cc test/test-simple.c -I. -L target/debug/build/video-metadata-*/out -lvmrs -lavcodec -lavutil -lavformat -o ./target/debug/test-simple
+  - valgrind --leak-check=full --log-file="valgrind.log" ./target/debug/test-simple
+  - cat valgrind.log
+  # NB: OSX has a lot of ObjC allocated memory still reachable, but that's not our bussiness.
+  - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then cat valgrind.log | grep "no leaks are possible"; fi

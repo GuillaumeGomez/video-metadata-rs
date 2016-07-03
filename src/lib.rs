@@ -1,11 +1,12 @@
 extern crate libc;
+#[macro_use]
+extern crate lazy_static;
 
 pub use enums::{
     KnownTypes,
-    Result,
 };
 pub use video_metadata::{
-    get_format,
+    get_format_from_file,
     get_format_from_slice,
 };
 pub use types::{
