@@ -10,6 +10,7 @@ pub use video_metadata::{
     get_format_from_slice,
 };
 pub use types::{
+    Error,
     Metadata,
     Size,
 };
