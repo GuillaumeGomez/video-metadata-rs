@@ -21,9 +21,8 @@ matrix:
       rust: nightly
 install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libvpx ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install ffmpeg --with-libvpx ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install valgrind; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install ffmpeg ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install valgrind ; fi
 script:
   - rustc --version
   - cargo build
