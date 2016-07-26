@@ -19,8 +19,8 @@ install:
   - SET PATH=%PATH%;C:\Program Files (x86)\ffmpeg\win%BITS%\libs
   - SET LIB=%LIB%;C:\Program Files (x86)\ffmpeg\win%BITS%\libs
   - SET INCLUDE=%INCLUDE%;C:\Program Files (x86)\ffmpeg\win%BITS%\include
-  - IF "%BITS%" == "32" CALL "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\vcvars32.bat
-  - IF "%BITS%" == "64" CALL "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\amd64\vcvars64.bat
+  - IF "%BITS%" == "32" CALL "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\vcvars32.bat"
+  - IF "%BITS%" == "64" CALL "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\amd64\vcvars64.bat"
   - rustc -V
   - cargo -V
 
