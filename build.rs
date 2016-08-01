@@ -1,58 +1,34 @@
 extern crate gcc;
-#[cfg(not(target_os = "windows"))]
 extern crate pkg_config;
 
-#[cfg(not(target_os = "windows"))]
 use std::env;
-#[cfg(not(target_os = "windows"))]
-use std::fs;
 
-#[cfg(not(target_os = "windows"))]
-fn test_dirs(dir_names: &[&str]) -> Option<String> {
-    for dir_name in dir_names {
-        match fs::metadata(dir_name) {
-            Ok(ref d) if d.is_dir() => return Some((*dir_name).to_owned()),
-            _ => {}
-        }
+fn find_library(name: &str) -> pkg_config::Library {
+    match pkg_config::find_library(name) {
+        Err(e) => panic!("Couldn't find {}: {}", name, e),
+        Ok(lib) => lib,
     }
-    None
 }
-
-#[cfg(not(target_os = "windows"))]
-fn look_for_libs() {
-    let lib_dir = match env::var("FFMPEG_LIB_DIR") {
-        Ok(dir) => dir,
-        _ => {
-            // Check if pkg_config can do everything by itself.
-            if pkg_config::find_library("libavformat").is_ok() &&
-               pkg_config::find_library("libavcodec").is_ok() &&
-               pkg_config::find_library("libavutil").is_ok() {
-                return;
-            }
-
-            // Try to fall back on a few directories
-            if let Some(dir) = test_dirs(&vec!("/usr/lib", "/usr/local/lib")) {
-                dir
-            } else {
-                panic!("Couldn't find libavutil, libavcodec and libavformat. \
-                        Try setting their install directory path into FFMPEG_LIB_DIR");
-            }
-        }
-    };
-
-    println!("cargo:rustc-link-lib=libavformat");
-    println!("cargo:rustc-link-lib=libavcodec");
-    println!("cargo:rustc-link-lib=libavutil");
-    println!("cargo:rustc-link-search={}", lib_dir);
-}
-
-#[cfg(target_os = "windows")]
-fn look_for_libs() {}
 
 fn main() {
-    look_for_libs();
-    gcc::Config::new()
-                .file("ffi/vmrs.c")
-                .flag("-v")
-                .compile("libvmrs.a");
+    let target = env::var("TARGET").unwrap();
+
+    let mut config = gcc::Config::new();
+
+    // If FFMPEG_LIB_DIR is supplied, always use that, else use pkg-config to
+    // find where ffmpeg is installed
+    if let Some(lib_dir) = env::var("FFMPEG_LIB_DIR").ok() {
+        println!("cargo:rustc-link-lib=libavformat");
+        println!("cargo:rustc-link-lib=libavcodec");
+        println!("cargo:rustc-link-lib=libavutil");
+        println!("cargo:rustc-link-search={}", lib_dir);
+    } else if !target.contains("pc-windows-msvc") {
+        for name in ["libavformat", "libavcodec", "libavutil"].iter() {
+            let lib = find_library(name);
+            for path in lib.include_paths {
+                config.include(path);
+            }
+        }
+    }
+    config.file("ffi/vmrs.c").compile("libvmrs.a");
 }
