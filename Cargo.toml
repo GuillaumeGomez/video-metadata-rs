@@ -16,7 +16,6 @@ name = "video_metadata"
 
 [build-dependencies]
 gcc = "0.3"
-pkg-config = "0.3.8"
 
 [dependencies]
 libc = "^0.2"

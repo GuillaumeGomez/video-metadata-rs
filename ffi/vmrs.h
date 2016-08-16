@@ -47,10 +47,6 @@ typedef enum vmrs_result {
     VMRS_FUNC_NOT_FOUND         ///< If a function isn't found in a library.
 } vmrs_result_t;
 
-typedef AVFormatContext void;
-typedef AVIOContext void;
-typedef AVCodec void;
-
 void vmrs_initialize();
 
 int vmrs_read_info(const uint8_t* buffer,
