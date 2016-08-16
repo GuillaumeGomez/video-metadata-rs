@@ -1,3 +1,5 @@
+#include <dlfcn.h>
+#include "internals.h"
 #include "vmrs.h"
 
 /**
@@ -32,16 +34,6 @@ void vmrs_metadata_free(struct vmrs_metadata* metadata) {
     }
 }
 
-/**
- * This is the opaque structure we pass to the reading callback for our custom
- * context, in order to fake we're reading from a file (though we're actually
- * reading from a buffer).
- */
-struct buffer_data {
-    const uint8_t* ptr;
-    size_t size;
-};
-
 static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
     struct buffer_data* data = (struct buffer_data *)opaque;
     if (!opaque || buf_size < 0)
@@ -67,6 +59,39 @@ static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
 
 const size_t VMRS_INITIAL_BUFFER_SIZE = 4096;
 
+int free_dlsyms(void *avformat_link, void *avcodec_link, void *avutil_link, int ret) {
+    if (avformat_link) {
+        dlclose(avformat_link);
+    }
+    if (avcodec_link) {
+        dlclose(avcodec_link);
+    }
+    if (avutil_link) {
+        dlclose(avutil_link);
+    }
+    return ret;
+}
+
+int get_symbol(void *linker, const char *name, void **tab) {
+    *tab = dlsym(linker, name);
+    return tab != NULL;
+}
+
+void **get_symbols(void *avformat_link, void *avcodec_link, void *avutil_link) {
+    void symbols[] = [NULL, NULL, NULL, NULL, NULL, NULL, NULL];
+
+    if (!get_symbol(avformat_link, "avformat_alloc_context", &symbols[AV_ALLOC_CONTEXT]) ||
+        !get_symbol(avutil_link, "av_malloc", &symbols[AV_MALLOC]) ||
+        !get_symbol(avformat_link, "avformat_close_input", &symbols[AV_CLOSE_INPUT]) ||
+        !get_symbol(avcodec_link, "avio_alloc_context", &symbols[AV_IO_ALLOC_CONTEXT]) ||
+        !get_symbol(avformat_link, "avformat_open_input", &symbols[AV_OPEN_INPUT]) ||
+        !get_symbol(avformat_link, "avformat_find_stream_info", &symbols[AV_FIND_STREAM_INFO]) ||
+        !get_symbol(avformat_link, "av_find_best_stream", &symbols[AV_FIND_BEST_STREAM])) {
+        return NULL;
+    }
+    return symbols;
+}
+
 /**
  * Read metadata from either a buffer and a size, or a filename
  *
@@ -91,6 +116,21 @@ int vmrs_read_info(const uint8_t* buffer,
     // Please give me at least one byte.
     if (buffer && !size)
         return VMRS_ERROR_INPUT_FAILURE;
+
+    // First we get libraries handler.
+    void *avformat_link, avcodec_link, avutil_link;
+    avformat_link = avcodec_link = avutil_link = NULL;
+    if (!(avformat_link = dlopen("libavformat.so", RTLD_LAZY)) ||
+        !(avcodec_link = dlopen("libavcodec.so", RTLD_LAZY)) ||
+        !(avutil_link = dlopen("libavutil.so", RTLD_LAZY))) {
+        return free_dlsyms(avformat_link, avcodec_link, NULL, VMRS_LIB_NOT_FOUND);
+    }
+
+    // Then we get functions symbol.
+    void **symbols = get_symbols(avformat_link, avcodec_link, avutil_link);
+    if (!symbols) {
+        return free_dlsyms(avformat_link, avcodec_link, avutil_link, VMRS_FUNC_NOT_FOUND);
+    }
 
     AVFormatContext* format_ctx = NULL;
     AVIOContext* io_ctx = NULL;
@@ -233,7 +273,7 @@ errorexit:
     // }
     // avio_close(io_ctx);
 
-    return ret;
+    return free_dlsyms(avformat_link, avcodec_link, avutil_link, ret);
 }
 
 int vmrs_read_info_from_buffer(const uint8_t* buffer,

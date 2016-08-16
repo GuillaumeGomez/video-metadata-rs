@@ -1,11 +1,11 @@
 #ifndef VMRS_H_
 #define VMRS_H_
 
-#include <libavformat/avformat.h>
+/*#include <libavformat/avformat.h>
 #include <libavformat/avio.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/file.h>
-#include <libavutil/opt.h>
+#include <libavutil/opt.h>*/
 
 #include <stdlib.h>
 #include <string.h>
@@ -43,7 +43,13 @@ typedef enum vmrs_result {
     VMRS_ERROR_INPUT_FAILURE,   ///< Some input provided to the library wasn't the expected.
     VMRS_ERROR_ALLOC,           ///< Wasn't able to allocate something.
     VMRS_FORMAT_NOT_AVAILABLE,  ///< Wasn't able to get the input format.
+    VMRS_LIB_NOT_FOUND,         ///< In case dlopen cannot find one of the needed libraries.
+    VMRS_FUNC_NOT_FOUND         ///< If a function isn't found in a library.
 } vmrs_result_t;
+
+typedef AVFormatContext void;
+typedef AVIOContext void;
+typedef AVCodec void;
 
 void vmrs_initialize();
 

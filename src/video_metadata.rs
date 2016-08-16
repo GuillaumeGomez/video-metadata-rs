@@ -38,6 +38,8 @@ pub enum vmrs_result {
     VMRS_ERROR_INPUT_FAILURE,
     VMRS_ERROR_ALLOC,
     VMRS_FORMAT_NOT_AVAILABLE,
+    VMRS_LIB_NOT_FOUND,
+    VMRS_FUNC_NOT_FOUND,
 }
 
 #[repr(C)]
