@@ -47,19 +47,19 @@ typedef enum vmrs_result {
     VMRS_FUNC_NOT_FOUND         ///< If a function isn't found in a library.
 } vmrs_result_t;
 
-void vmrs_initialize();
-
-int vmrs_read_info(const uint8_t* buffer,
-                   uint32_t size,
-                   const char* filename,
-                   struct vmrs_metadata* out);
+void vmrs_initialize(void **symbols);
 
 int vmrs_read_info_from_buffer(const uint8_t* buffer,
                                uint32_t size,
-                               struct vmrs_metadata* out);
+                               struct vmrs_metadata* out,
+                               void **symbols);
 
 int vmrs_read_info_from_file(const char* filename,
-                             struct vmrs_metadata* out);
+                             struct vmrs_metadata* out,
+                             void **symbols);
 
 void vmrs_metadata_free(struct vmrs_metadata* metadata);
+
+void *get_lib_handler(const char *name);
+
 #endif

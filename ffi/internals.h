@@ -2,6 +2,8 @@
 #define INTERNALS_H_
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <stddef.h>
 
 #define FFMIN(a, b) ((a) > (b) ? (b) : (a))
 
@@ -22,7 +24,10 @@ enum sym_name {
     AV_IO_ALLOC_CONTEXT,
     AV_OPEN_INPUT,
     AV_FIND_STREAM_INFO,
-    AV_FIND_BEST_STREAM
+    AV_FIND_BEST_STREAM,
+    AV_REGISTER_ALL,
+    AV_STR_ERROR,
+    SYMBOLS_NUMBER
 };
 
  enum AVMediaType {
@@ -34,8 +39,6 @@ enum sym_name {
     AVMEDIA_TYPE_ATTACHMENT,    ///< Opaque data information usually sparse
     AVMEDIA_TYPE_NB
 };
-
-//typedef void AVIOContext;
 
 typedef struct AVRational {
     int num;
@@ -101,4 +104,14 @@ typedef struct AVFormatContext {
     int64_t duration;
 } AVFormatContext;
 
-#endif INTERNALS_H_
+#define av_alloc_context() ((AVFormatContext*(*)())symbols[AV_ALLOC_CONTEXT])()
+#define av_malloc(x) ((unsigned char*(*)(int))symbols[AV_MALLOC])(x)
+#define av_close_input(x) ((void(*)(AVFormatContext**))symbols[AV_CLOSE_INPUT])(x)
+#define avio_alloc_context(a,b,c,d,e,f,g) ((void*(*)(unsigned char*, int, int, void*,void*,void*,void*))symbols[AV_IO_ALLOC_CONTEXT])(a,b,c,d,e,f,g)
+#define av_open_input(a,b,c,d) ((int(*)(AVFormatContext**,const char*, void*, void*))symbols[AV_OPEN_INPUT])(a,b,c,d)
+#define av_find_stream_info(x,y) ((int(*)(AVFormatContext*, void*))symbols[AV_FIND_STREAM_INFO])(x,y)
+#define av_find_best_stream(a,b,c,d,e,f) ((int(*)(AVFormatContext*, int, int, int, AVCodec**,int))symbols[AV_FIND_BEST_STREAM])(a,b,c,d,e,f)
+#define av_str_error(x,y,z) ((int(*)(int, char*, size_t))symbols[AV_STR_ERROR])(x,y,z)
+#define av_register_all() ((void(*)())symbols[AV_REGISTER_ALL])()
+
+#endif

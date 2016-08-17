@@ -1,5 +1,5 @@
 use enums::KnownTypes;
-use types::{Metadata, Size, Error};
+use types::{Metadata, Size, Error, Symbols};
 
 use std::time::Duration;
 use std::ffi::{CStr, CString};
@@ -7,13 +7,16 @@ use std::mem;
 use std::i64;
 use std::sync::{Mutex, Once, ONCE_INIT};
 
-use libc::{c_int, c_char};
+use libc::{c_int, c_char, c_void};
 
 // TODO: use rust-bindgen for this, or better yet, create/use libav bindings.
 extern "C" {
-    fn av_strerror(errnum: c_int, errbuf: *mut c_char, errbuf_size: usize) -> c_int;
+    fn av_strerror(errnum: c_int,
+                   errbuf: *mut c_char,
+                   errbuf_size: usize,
+                   symbols: *const *mut c_void) -> c_int;
 
-    fn vmrs_initialize();
+    fn vmrs_initialize(symbols: *const *mut c_void);
 
     // fn vmrs_read_info(buffer: *const u8,
     //                   size: u32,
@@ -21,11 +24,13 @@ extern "C" {
     //                   out: *mut vmrs_metadata) -> c_int;
 
     fn vmrs_read_info_from_file(filename: *const c_char,
-                                out: *mut vmrs_metadata) -> c_int;
+                                out: *mut vmrs_metadata,
+                                symbols: *const *mut c_void) -> c_int;
 
     fn vmrs_read_info_from_buffer(buffer: *const u8,
                                   size: u32,
-                                  out: *mut vmrs_metadata) -> c_int;
+                                  out: *mut vmrs_metadata,
+                                  symbols: *const *mut c_void) -> c_int;
 
     fn vmrs_metadata_free(metadata: *mut vmrs_metadata);
 }
@@ -103,9 +108,12 @@ unsafe fn from_metadata(meta: *mut vmrs_metadata) -> Result<Metadata, ()> {
 }
 
 static INIT: Once = ONCE_INIT;
+lazy_static! {
+    static ref SYMBOLS: Symbols = Symbols::new();
+}
 fn initialize_if_needed() {
     INIT.call_once(|| {
-        unsafe { vmrs_initialize(); }
+        unsafe { vmrs_initialize(SYMBOLS.syms.as_ptr()); }
     });
 }
 
@@ -125,7 +133,8 @@ pub fn av_strerror_safe(errnum: i32) -> Option<String> {
     let ret = unsafe {
         av_strerror(errnum as c_int,
                     buf.as_mut_ptr(),
-                    buf.len() - 1)
+                    buf.len() - 1,
+                    SYMBOLS.syms.as_ptr())
     };
 
     if ret < 0 {
@@ -145,7 +154,7 @@ pub fn get_format_from_file(filename: &str) -> Result<Metadata, Error> {
         let mut metadata = mem::zeroed();
         let result = {
             let _guard = AVCODEC_MUTEX.lock().unwrap();
-            vmrs_read_info_from_file(c_name.as_ptr(), &mut metadata)
+            vmrs_read_info_from_file(c_name.as_ptr(), &mut metadata, SYMBOLS.syms.as_ptr())
         };
 
         if result == 0 {
@@ -164,7 +173,8 @@ pub fn get_format_from_slice(content: &[u8]) -> Result<Metadata, Error> {
             let _guard = AVCODEC_MUTEX.lock().unwrap();
             vmrs_read_info_from_buffer(content.as_ptr(),
                                        content.len() as u32,
-                                       &mut metadata)
+                                       &mut metadata,
+                                       SYMBOLS.syms.as_ptr())
         };
 
         if result == 0 {
