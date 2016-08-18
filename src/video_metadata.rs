@@ -1,5 +1,6 @@
 use enums::KnownTypes;
-use types::{Metadata, Size, Error, Symbols};
+use types::{Metadata, Size, Error};
+use symbols::Symbols;
 
 use std::time::Duration;
 use std::ffi::{CStr, CString};
@@ -14,9 +15,9 @@ extern "C" {
     fn av_strerror(errnum: c_int,
                    errbuf: *mut c_char,
                    errbuf_size: usize,
-                   symbols: *const *mut c_void) -> c_int;
+                   symbols: *const *const c_void) -> c_int;
 
-    fn vmrs_initialize(symbols: *const *mut c_void);
+    fn vmrs_initialize(symbols: *const *const c_void);
 
     // fn vmrs_read_info(buffer: *const u8,
     //                   size: u32,
@@ -25,12 +26,12 @@ extern "C" {
 
     fn vmrs_read_info_from_file(filename: *const c_char,
                                 out: *mut vmrs_metadata,
-                                symbols: *const *mut c_void) -> c_int;
+                                symbols: *const *const c_void) -> c_int;
 
     fn vmrs_read_info_from_buffer(buffer: *const u8,
                                   size: u32,
                                   out: *mut vmrs_metadata,
-                                  symbols: *const *mut c_void) -> c_int;
+                                  symbols: *const *const c_void) -> c_int;
 
     fn vmrs_metadata_free(metadata: *mut vmrs_metadata);
 }

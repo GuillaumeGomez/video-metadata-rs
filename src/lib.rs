@@ -1,6 +1,8 @@
 extern crate libc;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate shared_library;
 
 pub use enums::{
     KnownTypes,
@@ -18,5 +20,4 @@ pub use types::{
 pub mod enums;
 pub mod video_metadata;
 pub mod types;
-
-#[link(name = "dl")] extern {}
+mod symbols;

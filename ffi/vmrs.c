@@ -1,12 +1,6 @@
-#include <dlfcn.h>
 #include <string.h>
 #include "internals.h"
 #include "vmrs.h"
-
-int get_symbol(void *linker, const char *name, void **tab) {
-    *tab = dlsym(linker, name);
-    return *tab != NULL;
-}
 
 int check_symbols(void **symbols) {
     int i = 0;
@@ -15,27 +9,11 @@ int check_symbols(void **symbols) {
     return i == SYMBOLS_NUMBER;
 }
 
-int get_symbols(void *avformat_link, void *avutil_link, void **symbols) {
-    return get_symbol(avformat_link, "avformat_alloc_context", &symbols[AV_ALLOC_CONTEXT]) &&
-           get_symbol(avutil_link, "av_malloc", &symbols[AV_MALLOC]) &&
-           get_symbol(avformat_link, "avformat_close_input", &symbols[AV_CLOSE_INPUT]) &&
-           get_symbol(avformat_link, "avio_alloc_context", &symbols[AV_IO_ALLOC_CONTEXT]) &&
-           get_symbol(avformat_link, "avformat_open_input", &symbols[AV_OPEN_INPUT]) &&
-           get_symbol(avformat_link, "avformat_find_stream_info", &symbols[AV_FIND_STREAM_INFO]) &&
-           get_symbol(avformat_link, "av_find_best_stream", &symbols[AV_FIND_BEST_STREAM]) &&
-           get_symbol(avformat_link, "av_register_all", &symbols[AV_REGISTER_ALL]) &&
-           get_symbol(avutil_link, "av_strerror", &symbols[AV_STR_ERROR]);
-}
-
 int av_strerror(int errnum, char *errbuf, size_t errbuf_size, void **symbols) {
     if (symbols[AV_STR_ERROR] == NULL) {
         return -1;
     }
     return av_str_error(errnum, errbuf, errbuf_size);
-}
-
-void *get_lib_handler(const char *name) {
-    return dlopen(name, RTLD_LAZY);
 }
 
 /**

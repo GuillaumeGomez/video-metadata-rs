@@ -60,6 +60,4 @@ int vmrs_read_info_from_file(const char* filename,
 
 void vmrs_metadata_free(struct vmrs_metadata* metadata);
 
-void *get_lib_handler(const char *name);
-
 #endif

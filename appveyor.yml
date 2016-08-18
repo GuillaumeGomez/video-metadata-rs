@@ -16,8 +16,7 @@ install:
   - rust-dist.exe /VERYSILENT /NORESTART /DIR="C:\Program Files (x86)\Rust"
   - SET PATH=%PATH%;C:\Program Files (x86)\Rust\bin
   - 7z x win.zip -o"C:\Program Files (x86)\ffmpeg" -y
-  - SET PATH=%PATH%;C:\Program Files (x86)\ffmpeg\win%BITS%\libs
-  - SET LIB=%LIB%;C:\Program Files (x86)\ffmpeg\win%BITS%\libs
+  - SET FFMPEG_LIB_DIR=C:\Program Files (x86)\ffmpeg\win%BITS%\libs
   - SET INCLUDE=%INCLUDE%;C:\Program Files (x86)\ffmpeg\win%BITS%\include
   - IF "%BITS%" == "32" CALL "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\vcvars32.bat"
   - IF "%BITS%" == "64" CALL "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\amd64\vcvars64.bat"
