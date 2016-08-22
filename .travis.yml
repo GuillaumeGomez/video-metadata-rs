@@ -26,9 +26,9 @@ install:
 script:
   - rustc --version
   - cargo build
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then RUST_BACKTRACE=1 cargo test ; else RUST_BACKTRACE=1 FFMPEG_LIB_DIR=/usr/lib/x86_64-linux-gnu cargo test ; fi
-  # - cc test/test-simple.c -I. -L target/debug/build/video-metadata-*/out -lvmrs -lavcodec -lavutil -lavformat -o ./target/debug/test-simple
-  # - valgrind --leak-check=full --log-file="valgrind.log" ./target/debug/test-simple
-  # - cat valgrind.log
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then RUST_BACKTRACE=1 cargo test ; else RUST_BACKTRACE=1 LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu cargo test ; fi
+  - cc test/test-simple.c -I. -L target/debug/build/video-metadata-*/out -ldl -lvmrs -o ./target/debug/test-simple
+  - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu valgrind --leak-check=full --log-file="valgrind.log" ./target/debug/test-simple ; fi
+  - cat valgrind.log
   # NB: OSX has a lot of ObjC allocated memory still reachable, but that's not our bussiness.
-  # - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then cat valgrind.log | grep "no leaks are possible"; fi
+  - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then cat valgrind.log | grep "no leaks are possible"; fi
