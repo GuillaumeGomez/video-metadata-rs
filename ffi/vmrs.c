@@ -1,11 +1,30 @@
+#include <string.h>
+#include "internals.h"
 #include "vmrs.h"
+
+int check_symbols(void **symbols) {
+    int i = 0;
+
+    for (; i < SYMBOLS_NUMBER && symbols[i] != NULL; i++);
+    return i == SYMBOLS_NUMBER;
+}
+
+int av_strerror(int errnum, char *errbuf, size_t errbuf_size, void **symbols) {
+    if (symbols[AV_STR_ERROR] == NULL) {
+        return -1;
+    }
+    return av_str_error(errnum, errbuf, errbuf_size);
+}
 
 /**
  * Main function to initialize the library.
  *
  * Needs to run on startup and is NOT thread-safe.
  */
-void vmrs_initialize() {
+void vmrs_initialize(void **symbols) {
+    if (!check_symbols(symbols) || symbols[AV_REGISTER_ALL] == NULL) {
+        return;
+    }
     av_register_all();
 }
 
@@ -31,16 +50,6 @@ void vmrs_metadata_free(struct vmrs_metadata* metadata) {
         metadata->format = NULL;
     }
 }
-
-/**
- * This is the opaque structure we pass to the reading callback for our custom
- * context, in order to fake we're reading from a file (though we're actually
- * reading from a buffer).
- */
-struct buffer_data {
-    const uint8_t* ptr;
-    size_t size;
-};
 
 static int read_packet(void *opaque, uint8_t *buf, int buf_size) {
     struct buffer_data* data = (struct buffer_data *)opaque;
@@ -80,7 +89,12 @@ const size_t VMRS_INITIAL_BUFFER_SIZE = 4096;
 int vmrs_read_info(const uint8_t* buffer,
                    uint32_t size,
                    const char* filename,
-                   struct vmrs_metadata* out) {
+                   struct vmrs_metadata* out,
+                   void **symbols) {
+    if (!check_symbols(symbols)) {
+        return VMRS_LIB_NOT_FOUND;
+    }
+
     if (!out)
         return VMRS_ERROR_INPUT_FAILURE;
 
@@ -93,32 +107,37 @@ int vmrs_read_info(const uint8_t* buffer,
         return VMRS_ERROR_INPUT_FAILURE;
 
     AVFormatContext* format_ctx = NULL;
-    AVIOContext* io_ctx = NULL;
+    void* io_ctx = NULL;
 
-    format_ctx = avformat_alloc_context();
-    if (!format_ctx)
+    format_ctx = av_alloc_context();
+    if (!format_ctx) {
         return VMRS_ERROR_ALLOC;
+    }
 
     // If we're provided with a buffer, we want to create a custom audio context
     // that fakes the "read_packet" operation, see the `read_packet` function
     // above.
     struct buffer_data buffer_data;
     if (buffer) {
+
         buffer_data.size = size;
         buffer_data.ptr = buffer;
 
         // Create a buffer with av_malloc for libav to be happy.
         unsigned char* avio_ctx_buffer = av_malloc(VMRS_INITIAL_BUFFER_SIZE);
         if (!avio_ctx_buffer) {
-            avformat_close_input(&format_ctx);
+            av_close_input(&format_ctx);
             return VMRS_ERROR_ALLOC;
         }
-        io_ctx = avio_alloc_context(avio_ctx_buffer, VMRS_INITIAL_BUFFER_SIZE,
+        io_ctx = avio_alloc_context(avio_ctx_buffer,
+                                    VMRS_INITIAL_BUFFER_SIZE,
                                     /* writeable = */ 0,
                                     /* opaque = */ &buffer_data,
-                                    &read_packet, NULL, NULL);
+                                    &read_packet,
+                                    NULL,
+                                    NULL);
         if (!io_ctx) {
-            avformat_close_input(&format_ctx);
+            av_close_input(&format_ctx);
             return VMRS_ERROR_ALLOC;
         }
 
@@ -142,7 +161,7 @@ int vmrs_read_info(const uint8_t* buffer,
     int video_stream_index;
     int audio_stream_index;
 
-    ret = avformat_open_input(&format_ctx, filename, NULL, NULL);
+    ret = av_open_input(&format_ctx, filename, NULL, NULL);
     if (ret < 0) {
         // NB: avformat_open_input already frees the context on failure, though
         // doesn't free io_context if it's a custom one.
@@ -157,11 +176,12 @@ int vmrs_read_info(const uint8_t* buffer,
         goto errorexit;
     }
 
-    ret = avformat_find_stream_info(format_ctx, NULL);
+    ret = av_find_stream_info(format_ctx, NULL);
     if (ret < 0)
         goto errorexit;
 
-    video_stream_index = av_find_best_stream(format_ctx, AVMEDIA_TYPE_VIDEO,
+    video_stream_index = av_find_best_stream(format_ctx,
+                                             AVMEDIA_TYPE_VIDEO,
                                              /* wanted_stream = */ -1,
                                              /* related_stream = */ -1,
                                              /* decoder_ret = */ &video_decoder,
@@ -173,7 +193,8 @@ int vmrs_read_info(const uint8_t* buffer,
 
     // We're basically done here. We'll check in case we have an audio decoder,
     // but who cares.
-    audio_stream_index = av_find_best_stream(format_ctx, AVMEDIA_TYPE_AUDIO,
+    audio_stream_index = av_find_best_stream(format_ctx,
+                                             AVMEDIA_TYPE_AUDIO,
                                              /* wanted_stream = */ -1,
                                              /* related_stream = */ -1,
                                              /* decoder_ret = */ &audio_decoder,
@@ -218,7 +239,7 @@ int vmrs_read_info(const uint8_t* buffer,
 
 errorexit:
     if (format_ctx) {
-        avformat_close_input(&format_ctx);
+        av_close_input(&format_ctx);
         io_ctx = NULL; // Already freed, see below.
     }
 
@@ -238,11 +259,13 @@ errorexit:
 
 int vmrs_read_info_from_buffer(const uint8_t* buffer,
                                uint32_t size,
-                               struct vmrs_metadata* out) {
-    return vmrs_read_info(buffer, size, NULL, out);
+                               struct vmrs_metadata* out,
+                               void **symbols) {
+    return vmrs_read_info(buffer, size, NULL, out, symbols);
 }
 
 int vmrs_read_info_from_file(const char* filename,
-                             struct vmrs_metadata* out) {
-    return vmrs_read_info(NULL, 0, filename, out);
+                             struct vmrs_metadata* out,
+                             void **symbols) {
+    return vmrs_read_info(NULL, 0, filename, out, symbols);
 }

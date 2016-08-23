@@ -30,6 +30,10 @@ impl Error {
             "Alloc failure"
         } else if self.0 == vmrs_result::VMRS_FORMAT_NOT_AVAILABLE as i32 {
             "Format wasn't available"
+        } else if self.0 == vmrs_result::VMRS_LIB_NOT_FOUND as i32 {
+            "Library(ies) were/wasn't found/loaded"
+        } else if self.0 == vmrs_result::VMRS_FUNC_NOT_FOUND as i32 {
+            "Function(s) were/wasn't found"
         } else {
             "vmrs error not handled, this is a bug"
         }.to_owned()
