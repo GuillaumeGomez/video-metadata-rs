@@ -1,4 +1,5 @@
-extern crate ogg_metadata;
+extern crate mp4parse as mp4;
+extern crate ogg_metadata as ogg;
 
 pub use enums::{
     KnownTypes,

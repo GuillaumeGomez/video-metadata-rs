@@ -4,50 +4,88 @@ use types::{Metadata, Size, Error};
 use std::io::{Cursor, Read};
 use std::fs::File;
 
-use ogg_metadata as ogg;
-use ogg_metadata::AudioMetadata;
+use mp4;
+use ogg::{self, AudioMetadata};
 
 fn check_ogg(content: &[u8]) -> Result<Metadata, Error> {
-    match ogg::read_format(&mut Cursor::new(content)) {
-        Ok(v) => {
-            let mut meta = Metadata {
-                format: KnownTypes::Ogg,
-                duration: None, // for now, duration isn't handled.
-                size: Size { width: 0, height: 0 },
-                video: String::new(),
-                audio: None,
-            };
-            for form in v {
-                match form {
-                    ogg::OggFormat::Theora(ogg::TheoraMetadata { pixels_width, pixels_height }) => {
-                        meta.size.width = pixels_width;
-                        meta.size.height = pixels_height;
-                        meta.video = "Theora".to_owned();
-                    }
-                    ogg::OggFormat::Vorbis(s) => {
-                        meta.audio = Some("Vorbis".to_owned());
-                        meta.duration = s.get_duration();
-                    }
-                    ogg::OggFormat::Opus(s) => {
-                        meta.audio = Some("Opus".to_owned());
-                        meta.duration = s.get_duration();
-                    }
-                    ogg::OggFormat::Speex => {
-                        meta.audio = Some("Speex".to_owned());
-                    }
-                    ogg::OggFormat::Skeleton => {
-                        meta.audio = Some("Skeleton".to_owned());
-                    }
-                    ogg::OggFormat::Unknown => {}
+    if let Ok(v) = ogg::read_format(&mut Cursor::new(content)) {
+        let mut meta = Metadata {
+            format: KnownTypes::Ogg,
+            duration: None, // for now, duration isn't handled.
+            size: Size { width: 0, height: 0 },
+            video: String::new(),
+            audio: None,
+        };
+        for form in v {
+            match form {
+                ogg::OggFormat::Theora(ogg::TheoraMetadata { pixels_width, pixels_height }) => {
+                    meta.size.width = pixels_width;
+                    meta.size.height = pixels_height;
+                    meta.video = "Theora".to_owned();
                 }
-            }
-            if meta.video.len() > 0 {
-                Ok(meta)
-            } else {
-                Err(Error::UnknownFormat)
+                ogg::OggFormat::Vorbis(s) => {
+                    meta.audio = Some("Vorbis".to_owned());
+                    meta.duration = s.get_duration();
+                }
+                ogg::OggFormat::Opus(s) => {
+                    meta.audio = Some("Opus".to_owned());
+                    meta.duration = s.get_duration();
+                }
+                ogg::OggFormat::Speex => {
+                    meta.audio = Some("Speex".to_owned());
+                }
+                ogg::OggFormat::Skeleton => {
+                    meta.audio = Some("Skeleton".to_owned());
+                }
+                ogg::OggFormat::Unknown => {}
             }
         }
-        _ => Err(Error::UnknownFormat),
+        if meta.video.len() > 0 {
+            Ok(meta)
+        } else {
+            Err(Error::UnknownFormat)
+        }
+    } else {
+        Err(Error::UnknownFormat)
+    }
+}
+
+fn check_mp4(content: &[u8]) -> Result<Metadata, Error> {
+    let mut context = mp4::MediaContext::new();
+    if let Ok(()) = mp4::read_mp4(&mut Cursor::new(content), &mut context) {
+        let mut meta = Metadata {
+            format: KnownTypes::MP4,
+            duration: None, // for now, duration isn't handled.
+            size: Size { width: 0, height: 0 },
+            video: String::new(),
+            audio: None,
+        };
+        for track in context.tracks {
+            match track.data {
+                Some(mp4::SampleEntry::Video(v)) => {
+                    meta.size.width = v.width as u32;
+                    meta.size.height = v.height as u32;
+                    meta.video = match v.codec_specific {
+                        mp4::VideoCodecSpecific::AVCConfig(_) => "AVC".to_owned(),
+                        mp4::VideoCodecSpecific::VPxConfig(_) => "VPx".to_owned(),
+                    };
+                }
+                Some(mp4::SampleEntry::Audio(a)) => {
+                    meta.audio = Some(match a.codec_specific {
+                        mp4::AudioCodecSpecific::ES_Descriptor(_) => "ES".to_owned(),
+                        mp4::AudioCodecSpecific::OpusSpecificBox(_) => "Opus".to_owned(),
+                    });
+                }
+                Some(mp4::SampleEntry::Unknown) | None => {}
+            }
+        }
+        if meta.video.len() > 0 {
+            Ok(meta)
+        } else {
+            Err(Error::UnknownFormat)
+        }
+    } else {
+        Err(Error::UnknownFormat)
     }
 }
 
@@ -66,6 +104,8 @@ pub fn get_format_from_file(filename: &str) -> Result<Metadata, Error> {
 
 pub fn get_format_from_slice(content: &[u8]) -> Result<Metadata, Error> {
     if let Ok(meta) = check_ogg(content) {
+        Ok(meta)
+    } else if let Ok(meta) = check_mp4(content) {
         Ok(meta)
     }
     // Test other formats from here.
@@ -86,7 +126,7 @@ fn webm() {
         }
         Err(err) => panic!("This doesn't work, got error: {}", err.error_description()),
     }
-}
+}*/
 
 #[test]
 fn mp4() {
@@ -94,12 +134,14 @@ fn mp4() {
         Ok(metadata) => {
             assert_eq!(format!("{}x{}", metadata.size.width, metadata.size.height), "560x320".to_owned());
             assert_eq!(metadata.format, KnownTypes::MP4);
-            assert_eq!(&metadata.video, "h264");
-            assert_eq!(metadata.audio, Some("aac".to_owned()));
+            //assert_eq!(&metadata.video, "h264");
+            assert_eq!(&metadata.video, "AVC");
+            //assert_eq!(metadata.audio, Some("aac".to_owned()));
+            assert_eq!(metadata.audio, Some("ES".to_owned()));
         }
         Err(err) => panic!("This doesn't work, got error: {}", err.error_description()),
     }
-}*/
+}
 
 #[test]
 fn ogg() {

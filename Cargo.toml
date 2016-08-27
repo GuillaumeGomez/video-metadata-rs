@@ -15,3 +15,4 @@ name = "video_metadata"
 
 [dependencies]
 ogg_metadata = "0.3"
+mp4parse = { git = "https://github.com/GuillaumeGomez/mp4parse-rust" }
