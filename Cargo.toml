@@ -14,4 +14,4 @@ license = "MIT"
 name = "video_metadata"
 
 [dependencies]
-ogg_metadata = "0.2"
+ogg_metadata = "0.3"

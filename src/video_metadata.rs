@@ -5,6 +5,7 @@ use std::io::{Cursor, Read};
 use std::fs::File;
 
 use ogg_metadata as ogg;
+use ogg_metadata::AudioMetadata;
 
 fn check_ogg(content: &[u8]) -> Result<Metadata, Error> {
     match ogg::read_format(&mut Cursor::new(content)) {
@@ -23,11 +24,13 @@ fn check_ogg(content: &[u8]) -> Result<Metadata, Error> {
                         meta.size.height = pixels_height;
                         meta.video = "Theora".to_owned();
                     }
-                    ogg::OggFormat::Vorbis(_) => {
+                    ogg::OggFormat::Vorbis(s) => {
                         meta.audio = Some("Vorbis".to_owned());
+                        meta.duration = s.get_duration();
                     }
-                    ogg::OggFormat::Opus(_) => {
+                    ogg::OggFormat::Opus(s) => {
                         meta.audio = Some("Opus".to_owned());
+                        meta.duration = s.get_duration();
                     }
                     ogg::OggFormat::Speex => {
                         meta.audio = Some("Speex".to_owned());
@@ -35,6 +38,7 @@ fn check_ogg(content: &[u8]) -> Result<Metadata, Error> {
                     ogg::OggFormat::Skeleton => {
                         meta.audio = Some("Skeleton".to_owned());
                     }
+                    ogg::OggFormat::Unknown => {}
                 }
             }
             if meta.video.len() > 0 {
@@ -129,8 +133,8 @@ fn from_slice_full_file() {
     }
 }
 
-/*#[test]
-fn from_slice_partial_file() {
+#[test]
+fn ogg_from_slice_partial_file() {
     use std::fs::File;
     use std::io::Read;
 
@@ -148,7 +152,7 @@ fn from_slice_partial_file() {
         }
         Err(err) => panic!("This doesn't work, got error: {}", err.error_description()),
     }
-}*/
+}
 
 #[test]
 fn fail_partial_file() {
