@@ -1,6 +1,5 @@
-extern crate libc;
-#[macro_use]
-extern crate lazy_static;
+extern crate mp4parse as mp4;
+extern crate ogg_metadata as ogg;
 
 pub use enums::{
     KnownTypes,
@@ -18,7 +17,3 @@ pub use types::{
 pub mod enums;
 pub mod video_metadata;
 pub mod types;
-
-#[link(name = "avformat")] extern {}
-#[link(name = "avcodec")] extern {}
-#[link(name = "avutil")] extern {}

@@ -1,12 +1,4 @@
 language: rust
-addons:
-  apt:
-    packages:
-      - ffmpeg
-      - valgrind
-      - libavformat-dev
-      - libavcodec-dev
-      - libavutil-dev
 matrix:
   include:
     - os: linux
@@ -19,16 +11,7 @@ matrix:
       rust: stable
     - os: osx
       rust: nightly
-install:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install ffmpeg ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install valgrind ; fi
 script:
   - rustc --version
   - cargo build
   - RUST_BACKTRACE=1 cargo test
-  - cc test/test-simple.c -I. -L target/debug/build/video-metadata-*/out -lvmrs -lavcodec -lavutil -lavformat -o ./target/debug/test-simple
-  - valgrind --leak-check=full --log-file="valgrind.log" ./target/debug/test-simple
-  - cat valgrind.log
-  # NB: OSX has a lot of ObjC allocated memory still reachable, but that's not our bussiness.
-  - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then cat valgrind.log | grep "no leaks are possible"; fi
