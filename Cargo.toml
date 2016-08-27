@@ -1,6 +1,6 @@
 [package]
 name = "video-metadata"
-version = "0.1.3"
+version = "0.1.4"
 authors = [
   "Guillaume Gomez <guillaume1.gomez@gmail.com>",
   "Emilio Cobos Álvarez <ecoal95@gmail.com>"
